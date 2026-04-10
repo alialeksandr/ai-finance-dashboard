@@ -25,7 +25,7 @@ app.post("/api/refresh", async (_req, res) => {
   }
 
   try {
-    const response = await axios.post(webhookUrl, {}, { timeout: 60000 });
+    const response = await axios.get(webhookUrl, { timeout: 60000 });
     return res.json(response.data);
   } catch (err) {
     const message =
