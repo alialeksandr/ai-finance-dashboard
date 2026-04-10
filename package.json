@@ -1,0 +1,15 @@
+{
+  "name": "recon-dashboard",
+  "version": "1.0.0",
+  "description": "AI SMB CFO Dashboard — single-page finance dashboard powered by n8n",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0"
+  }
+}

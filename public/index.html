@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI SMB CFO Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1f2937;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #1e293b;
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 { font-size: 1.35rem; font-weight: 700; }
+  .btn-refresh {
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-refresh:hover { background: #2563eb; }
+  .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Spinner ── */
+  .spinner-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 0;
+  }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 5px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { display: none !important; }
+
+  /* ── Error banner ── */
+  .error-banner {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    padding: 14px 24px;
+    margin: 16px 24px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+
+  /* ── Dashboard grid ── */
+  .dashboard {
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .panel {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 20px;
+    overflow: hidden;
+  }
+  .panel-full { grid-column: 1 / -1; }
+  .panel h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: #374151;
+  }
+
+  /* ── KPI cards row ── */
+  .kpi-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .kpi-card {
+    flex: 1 1 200px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #fff;
+    border-radius: 10px;
+    padding: 22px 24px;
+    text-align: center;
+  }
+  .kpi-card .label { font-size: 0.85rem; opacity: 0.85; margin-bottom: 6px; }
+  .kpi-card .value { font-size: 1.75rem; font-weight: 700; }
+
+  /* ── Chart containers ── */
+  .chart-container { width: 100%; height: 340px; }
+
+  /* ── Data table ── */
+  .table-scroll { overflow-x: auto; }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .data-table th, .data-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+  .data-table th {
+    position: sticky; top: 0;
+    background: #f9fafb;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+  }
+  .data-table tbody tr:hover { background: #f9fafb; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .header h1 { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>AI SMB CFO Dashboard</h1>
+  <button class="btn-refresh" id="btnRefresh" onclick="refreshData()">Refresh</button>
+</div>
+
+<!-- Error banner (hidden by default) -->
+<div class="error-banner hidden" id="errorBanner"></div>
+
+<!-- Spinner (shown during loading) -->
+<div class="spinner-wrapper hidden" id="spinner">
+  <div class="spinner"></div>
+</div>
+
+<!-- Dashboard (hidden until data loads) -->
+<div class="dashboard hidden" id="dashboard">
+
+  <!-- KPI summary row -->
+  <div class="panel panel-full">
+    <h2>Key Metrics</h2>
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="label">Total Sales</div>
+        <div class="value" id="kpiTotalSales">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Data Date Range</div>
+        <div class="value" id="kpiDateRange">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bar chart: revenue by date -->
+  <div class="panel">
+    <h2>Revenue by Date</h2>
+    <div class="chart-container" id="barChart"></div>
+  </div>
+
+  <!-- Pie chart: sales by status -->
+  <div class="panel">
+    <h2>Sales by Status</h2>
+    <div class="chart-container" id="pieChart"></div>
+  </div>
+
+  <!-- Data table -->
+  <div class="panel panel-full">
+    <h2>All Transactions</h2>
+    <div class="table-scroll" style="max-height:420px;overflow-y:auto;">
+      <table class="data-table" id="dataTable">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// FIELD MAPPING — change these constants to remap JSON fields
+// ============================================================
+// The n8n response is expected to be an array whose first element
+// contains an "output" array of row objects.  Adjust FIELD_* below
+// if your JSON schema differs.
+// ------------------------------------------------------------
+const FIELD_DATE         = "Date";          // used for bar-chart x-axis
+const FIELD_COUNTERPARTY = "Counterparty";  // shown in the data table
+const FIELD_TOTAL        = "Total";         // numeric amount per row
+const FIELD_INVOICE      = "InvoiceNumber"; // shown in the data table
+const FIELD_DUE_DATE     = "DueDateString"; // shown in the data table
+const FIELD_STATUS       = "Status";        // used for pie chart grouping
+// ============================================================
+
+let lastData = null; // keep last successful data visible between refreshes
+
+async function refreshData() {
+  const btn     = document.getElementById("btnRefresh");
+  const spinner = document.getElementById("spinner");
+  const errBan  = document.getElementById("errorBanner");
+  const dash    = document.getElementById("dashboard");
+
+  btn.disabled = true;
+  errBan.classList.add("hidden");
+  spinner.classList.remove("hidden");
+
+  try {
+    const res = await fetch("/api/refresh", { method: "POST" });
+    const json = await res.json();
+
+    if (!res.ok) throw new Error(json.error || "Server returned an error");
+
+    // ── Unwrap the n8n payload ──────────────────────────────
+    // n8n returns [{ output: [ ...rows ] }]
+    // If your webhook returns a flat array, change this line.
+    let rows;
+    if (Array.isArray(json) && json[0] && Array.isArray(json[0].output)) {
+      rows = json[0].output;                 // <-- remap: nested "output" array
+    } else if (Array.isArray(json)) {
+      rows = json;                            // <-- flat array fallback
+    } else {
+      throw new Error("Unexpected response shape from n8n");
+    }
+
+    lastData = rows;
+    renderDashboard(rows);
+    spinner.classList.add("hidden");
+    dash.classList.remove("hidden");
+
+  } catch (err) {
+    spinner.classList.add("hidden");
+    errBan.textContent = err.message;
+    errBan.classList.remove("hidden");
+    // If we had previous data, keep the dashboard visible
+    if (lastData) dash.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Render all panels ──────────────────────────────────────
+function renderDashboard(rows) {
+  renderKPIs(rows);
+  renderBarChart(rows);
+  renderPieChart(rows);
+  renderTable(rows);
+}
+
+// ── KPI cards ──────────────────────────────────────────────
+function renderKPIs(rows) {
+  // Total sales: sum of FIELD_TOTAL across all rows
+  const total = rows.reduce((sum, r) => sum + (parseFloat(r[FIELD_TOTAL]) || 0), 0);
+  document.getElementById("kpiTotalSales").textContent =
+    "$" + total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Date range from FIELD_DATE
+  const dates = rows
+    .map(r => r[FIELD_DATE])
+    .filter(Boolean)
+    .sort((a, b) => new Date(a) - new Date(b));
+  const range = dates.length
+    ? dates[0] + " – " + dates[dates.length - 1]
+    : "N/A";
+  document.getElementById("kpiDateRange").textContent = range;
+}
+
+// ── Bar chart: revenue by date ─────────────────────────────
+function renderBarChart(rows) {
+  // Aggregate FIELD_TOTAL by FIELD_DATE
+  const byDate = {};
+  rows.forEach(r => {
+    const key = r[FIELD_DATE] || "Unknown";    // <-- remap: grouping key
+    byDate[key] = (byDate[key] || 0) + (parseFloat(r[FIELD_TOTAL]) || 0);
+  });
+
+  const sortedKeys = Object.keys(byDate).sort((a, b) => new Date(a) - new Date(b));
+  const values = sortedKeys.map(k => +byDate[k].toFixed(2));
+
+  const chart = echarts.init(document.getElementById("barChart"));
+  chart.setOption({
+    tooltip: { trigger: "axis", formatter: params => params[0].name + "<br/>$" + params[0].value.toLocaleString() },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: { type: "category", data: sortedKeys, axisLabel: { rotate: 30, fontSize: 11 } },
+    yAxis: { type: "value", axisLabel: { formatter: v => "$" + v.toLocaleString() } },
+    series: [{
+      type: "bar",
+      data: values,
+      itemStyle: { color: "#3b82f6", borderRadius: [4, 4, 0, 0] },
+      barMaxWidth: 48
+    }]
+  });
+  window.addEventListener("resize", () => chart.resize());
+}
+
+// ── Pie / donut chart: by status ───────────────────────────
+function renderPieChart(rows) {
+  // Aggregate FIELD_TOTAL by FIELD_STATUS
+  const byStatus = {};
+  rows.forEach(r => {
+    const key = r[FIELD_STATUS] || "Unknown";  // <-- remap: grouping key
+    byStatus[key] = (byStatus[key] || 0) + (parseFloat(r[FIELD_TOTAL]) || 0);
+  });
+
+  const data = Object.entries(byStatus).map(([name, value]) => ({
+    name,
+    value: +value.toFixed(2)
+  }));
+
+  const chart = echarts.init(document.getElementById("pieChart"));
+  chart.setOption({
+    tooltip: { trigger: "item", formatter: p => p.name + "<br/>$" + p.value.toLocaleString() + " (" + p.percent + "%)" },
+    legend: { bottom: 0, type: "scroll" },
+    series: [{
+      type: "pie",
+      radius: ["40%", "70%"],
+      center: ["50%", "45%"],
+      avoidLabelOverlap: true,
+      itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 2 },
+      label: { show: true, formatter: "{b}: {d}%" },
+      data
+    }]
+  });
+  window.addEventListener("resize", () => chart.resize());
+}
+
+// ── Data table ─────────────────────────────────────────────
+function renderTable(rows) {
+  if (!rows.length) return;
+
+  // Column order — remap here to change visible columns or their order
+  const columns = [
+    FIELD_DATE,
+    FIELD_COUNTERPARTY,
+    FIELD_TOTAL,
+    FIELD_INVOICE,
+    FIELD_DUE_DATE,
+    FIELD_STATUS
+  ];
+
+  const table = document.getElementById("dataTable");
+
+  // Header
+  const thead = table.querySelector("thead tr");
+  thead.innerHTML = columns.map(c => "<th>" + escapeHtml(c) + "</th>").join("");
+
+  // Body
+  const tbody = table.querySelector("tbody");
+  tbody.innerHTML = rows.map(r =>
+    "<tr>" +
+    columns.map(c => {
+      let val = r[c];
+      // Format currency for FIELD_TOTAL
+      if (c === FIELD_TOTAL && typeof val === "number") {
+        val = "$" + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      return "<td>" + escapeHtml(String(val ?? "")) + "</td>";
+    }).join("") +
+    "</tr>"
+  ).join("");
+}
+
+function escapeHtml(str) {
+  const el = document.createElement("span");
+  el.textContent = str;
+  return el.innerHTML;
+}
+</script>
+
+</body>
+</html>
