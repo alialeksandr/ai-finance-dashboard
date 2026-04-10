@@ -108,7 +108,7 @@
   .kpi-card .value { font-size: 1.75rem; font-weight: 700; }
 
   /* ── Chart containers ── */
-  .chart-container { width: 100%; height: 340px; }
+  .chart-container { width: 100%; min-height: 340px; height: 100%; }
 
   /* ── Data table ── */
   .table-scroll { overflow-x: auto; }
@@ -300,10 +300,11 @@ function renderBarChart(rows) {
   const sortedKeys = Object.keys(byDate).sort((a, b) => new Date(a) - new Date(b));
   const values = sortedKeys.map(k => +byDate[k].toFixed(2));
 
-  const chart = echarts.init(document.getElementById("barChart"));
+  const barEl = document.getElementById("barChart");
+  const chart = echarts.init(barEl, null, { width: barEl.offsetWidth, height: barEl.offsetHeight });
   chart.setOption({
     tooltip: { trigger: "axis", formatter: params => params[0].name + "<br/>$" + params[0].value.toLocaleString() },
-    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    grid: { left: 60, right: 30, top: 20, bottom: 50, containLabel: false },
     xAxis: { type: "category", data: sortedKeys, axisLabel: { rotate: 30, fontSize: 11 } },
     yAxis: { type: "value", axisLabel: { formatter: v => "$" + v.toLocaleString() } },
     series: [{
@@ -313,6 +314,7 @@ function renderBarChart(rows) {
       barMaxWidth: 48
     }]
   });
+  setTimeout(() => chart.resize(), 0);
   window.addEventListener("resize", () => chart.resize());
 }
 
@@ -330,8 +332,9 @@ function renderPieChart(rows) {
     value: +value.toFixed(2)
   }));
 
-  const chart = echarts.init(document.getElementById("pieChart"));
-  chart.setOption({
+  const pieEl = document.getElementById("pieChart");
+  const pieChart = echarts.init(pieEl, null, { width: pieEl.offsetWidth, height: pieEl.offsetHeight });
+  pieChart.setOption({
     tooltip: { trigger: "item", formatter: p => p.name + "<br/>$" + p.value.toLocaleString() + " (" + p.percent + "%)" },
     legend: { bottom: 0, type: "scroll" },
     series: [{
@@ -344,7 +347,8 @@ function renderPieChart(rows) {
       data
     }]
   });
-  window.addEventListener("resize", () => chart.resize());
+  setTimeout(() => pieChart.resize(), 0);
+  window.addEventListener("resize", () => pieChart.resize());
 }
 
 // ── Data table ─────────────────────────────────────────────
